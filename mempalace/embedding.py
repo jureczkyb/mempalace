@@ -284,6 +284,10 @@ class BGEM3MLX:
 
     def embed_query(self, input):  # noqa: A002 — ChromaDB EF protocol uses `input`
         """ChromaDB 1.x embedding-function protocol for a single query."""
+        if isinstance(input, str):
+            return self([input])[0]
+        if isinstance(input, (list, tuple)):
+            return self(list(input))
         return self([input])[0]
 
     def device_report(self) -> dict:

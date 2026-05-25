@@ -161,6 +161,7 @@ def test_bge_m3_mlx_caps_length_and_uses_small_batches(monkeypatch):
     ]
     assert ef.embed_documents(["doc input"]) == [[0.0] * 1024]
     assert ef.embed_query("query input") == [0.0] * 1024
+    assert ef.embed_query(["query input"]) == [[0.0] * 1024]
 
 
 def test_describe_device_uses_resolved_effective_device(monkeypatch):
