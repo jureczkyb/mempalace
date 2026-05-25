@@ -88,6 +88,20 @@ def test_get_embedding_function_caches_by_resolved_provider_tuple(monkeypatch):
     assert first.preferred_providers == ["CPUExecutionProvider"]
 
 
+def test_get_embedding_function_bge_m3_mlx_uses_mlx_cache(monkeypatch):
+    class DummyMLX:
+        pass
+
+    monkeypatch.setattr(embedding, "BGEM3MLX", DummyMLX)
+
+    first = embedding.get_embedding_function(model="bge_m3_mlx")
+    second = embedding.get_embedding_function(model="bge-m3-mlx")
+
+    assert isinstance(first, DummyMLX)
+    assert second is first
+    assert embedding.get_embedding_function(model="bge_m3_mlx") is first
+
+
 def test_describe_device_uses_resolved_effective_device(monkeypatch):
     monkeypatch.setattr(
         embedding,
@@ -96,3 +110,7 @@ def test_describe_device_uses_resolved_effective_device(monkeypatch):
     )
 
     assert embedding.describe_device("auto") == "cuda"
+
+
+def test_describe_device_accepts_mlx():
+    assert embedding.describe_device("mlx") == "mlx"

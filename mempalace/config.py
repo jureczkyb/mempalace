@@ -525,7 +525,8 @@ class MempalaceConfig:
 
         Values: ``"minilm"`` (ChromaDB's all-MiniLM-L6-v2 — English-only),
         ``"embeddinggemma"`` (multilingual, 100+ languages, default for
-        new installs since onboarding writes the choice). Read from env
+        new installs since onboarding writes the choice), ``"bge_m3_mlx"``
+        (BGE-M3 via MLX/Metal on Apple Silicon, 1024-dim). Read from env
         ``MEMPALACE_EMBEDDING_MODEL`` first, then ``embedding_model`` in
         ``config.json``, then ``"minilm"`` as a back-compat fallback for
         palaces created before onboarding asked the question.
@@ -543,10 +544,10 @@ class MempalaceConfig:
     def set_embedding_model(self, model: str) -> None:
         """Persist the embedding-model choice to ``config.json``.
 
-        Onboarding calls this once on first run. Accepts ``"minilm"`` or
-        ``"embeddinggemma"``; other values are normalized to lowercase and
-        passed through (``embedding.get_embedding_function`` falls back to
-        minilm for unrecognized values).
+        Onboarding calls this once on first run. Accepts ``"minilm"``,
+        ``"embeddinggemma"``, or ``"bge_m3_mlx"``; other values are normalized
+        to lowercase and passed through (``embedding.get_embedding_function``
+        falls back to minilm for unrecognized values).
         """
         self._file_config["embedding_model"] = str(model).strip().lower()
         self._config_dir.mkdir(parents=True, exist_ok=True)

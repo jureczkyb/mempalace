@@ -15,6 +15,9 @@ or ``embedding_model`` in ``~/.mempalace/config.json``:
   model is lazy-downloaded from HuggingFace on first use. Switching models
   on an existing palace requires ``mempalace repair rebuild-index``
   (different vector space).
+* ``bge_m3_mlx`` — BAAI/bge-m3 through mlx-embedding-models, 1024-dim,
+  multilingual, 8192-token max length. Runs through MLX/Metal on Apple Silicon
+  and requires installing ``mempalace[mlx]`` or ``mlx-embedding-models``.
 
 Supported devices (env ``MEMPALACE_EMBEDDING_DEVICE`` or ``embedding_device``
 in ``~/.mempalace/config.json``):
@@ -135,6 +138,8 @@ _EMBEDDINGGEMMA_ONNX = "model_quantized.onnx"
 _EMBEDDINGGEMMA_PREFIX = "task: sentence similarity | query: "
 _EMBEDDINGGEMMA_DIM = 384  # Matryoshka truncation — first 384 dims of the 768
 _EMBEDDINGGEMMA_MAX_LEN = 2048
+_BGE_M3_MLX_MODEL_NAMES = {"bge_m3_mlx", "bge-m3-mlx"}
+_BGE_M3_MLX_REGISTRY_NAME = "bge-m3"
 
 
 class EmbeddinggemmaONNX:
@@ -224,6 +229,54 @@ class EmbeddinggemmaONNX:
         return (sent_emb / norms).tolist()
 
 
+class BGEM3MLX:
+    """ChromaDB-compatible EF using BAAI/bge-m3 through MLX/Metal.
+
+    Output is 1024-dimensional and normalized by ``mlx-embedding-models``.
+    This is a different vector space from MiniLM and EmbeddingGemma, so an
+    existing palace must be rebuilt before switching to this model.
+    """
+
+    @staticmethod
+    def name() -> str:
+        return "bge_m3_mlx_1024"
+
+    def __init__(self):
+        self._model = None
+        self._mx = None
+
+    def _lazy_load(self) -> None:
+        if self._model is not None:
+            return
+        try:
+            import mlx.core as mx
+            from mlx_embedding_models import EmbeddingModel
+        except ImportError as e:
+            raise ImportError(
+                "BGEM3MLX requires mlx-embedding-models. Install with: "
+                "pip install mlx-embedding-models (or mempalace[mlx] when using "
+                "a package version that exposes the extra)."
+            ) from e
+
+        self._model = EmbeddingModel.from_registry(_BGE_M3_MLX_REGISTRY_NAME)
+        self._mx = mx
+
+    def __call__(self, input):  # noqa: A002 — ChromaDB EF protocol uses `input`
+        self._lazy_load()
+        embeddings = self._model.encode(list(input), show_progress=False)
+        return embeddings.tolist()
+
+    def device_report(self) -> dict:
+        """Return a lightweight MLX/Metal runtime report for diagnostics."""
+        self._lazy_load()
+        mx = self._mx
+        return {
+            "mlx_default_device": str(mx.default_device()),
+            "active_memory": int(mx.get_active_memory()),
+            "peak_memory": int(mx.get_peak_memory()),
+        }
+
+
 def get_embedding_function(device: Optional[str] = None, model: Optional[str] = None):
     """Return a cached embedding function for the requested device + model.
 
@@ -241,13 +294,25 @@ def get_embedding_function(device: Optional[str] = None, model: Optional[str] = 
         if model is None:
             model = cfg.embedding_model
 
+    model_key = (model or "minilm").strip().lower()
+    if model_key in _BGE_M3_MLX_MODEL_NAMES:
+        model_key = "bge_m3_mlx"
+        cache_key = (model_key, "mlx")
+        cached = _EF_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        ef = BGEM3MLX()
+        _EF_CACHE[cache_key] = ef
+        logger.info("Embedding function initialized (model=%s device=mlx)", model_key)
+        return ef
+
     providers, effective = _resolve_providers(device)
-    cache_key = (model, tuple(providers))
+    cache_key = (model_key, tuple(providers))
     cached = _EF_CACHE.get(cache_key)
     if cached is not None:
         return cached
 
-    if model == "embeddinggemma":
+    if model_key == "embeddinggemma":
         ef = EmbeddinggemmaONNX(preferred_providers=providers)
     else:
         # Default: minilm (or anything we don't recognize — back-compat win).
@@ -257,7 +322,7 @@ def get_embedding_function(device: Optional[str] = None, model: Optional[str] = 
     _EF_CACHE[cache_key] = ef
     logger.info(
         "Embedding function initialized (model=%s device=%s providers=%s)",
-        model,
+        model_key,
         effective,
         providers,
     )
@@ -273,6 +338,11 @@ def describe_device(device: Optional[str] = None) -> str:
     if device is None:
         from .config import MempalaceConfig
 
-        device = MempalaceConfig().embedding_device
+        cfg = MempalaceConfig()
+        if cfg.embedding_model in _BGE_M3_MLX_MODEL_NAMES:
+            return "mlx"
+        device = cfg.embedding_device
+    if str(device).strip().lower() == "mlx":
+        return "mlx"
     _, effective = _resolve_providers(device)
     return effective
