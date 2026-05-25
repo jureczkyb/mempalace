@@ -278,6 +278,14 @@ class BGEM3MLX:
         )
         return embeddings.tolist()
 
+    def embed_documents(self, input):  # noqa: A002 — ChromaDB EF protocol uses `input`
+        """ChromaDB 1.x embedding-function protocol for document batches."""
+        return self(input)
+
+    def embed_query(self, input):  # noqa: A002 — ChromaDB EF protocol uses `input`
+        """ChromaDB 1.x embedding-function protocol for a single query."""
+        return self([input])[0]
+
     def device_report(self) -> dict:
         """Return a lightweight MLX/Metal runtime report for diagnostics."""
         self._lazy_load()
