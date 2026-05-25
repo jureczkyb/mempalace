@@ -16,8 +16,10 @@ or ``embedding_model`` in ``~/.mempalace/config.json``:
   on an existing palace requires ``mempalace repair rebuild-index``
   (different vector space).
 * ``bge_m3_mlx`` — BAAI/bge-m3 through mlx-embedding-models, 1024-dim,
-  multilingual, 8192-token max length. Runs through MLX/Metal on Apple Silicon
-  and requires installing ``mempalace[mlx]`` or ``mlx-embedding-models``.
+  multilingual. Runs through MLX/Metal on Apple Silicon and requires
+  installing ``mempalace[mlx]`` or ``mlx-embedding-models``. The current
+  mlx-embedding-models BERT runner pads to fixed buckets up to 512 tokens, so
+  inputs are truncated to that cap before embedding.
 
 Supported devices (env ``MEMPALACE_EMBEDDING_DEVICE`` or ``embedding_device``
 in ``~/.mempalace/config.json``):
@@ -140,6 +142,8 @@ _EMBEDDINGGEMMA_DIM = 384  # Matryoshka truncation — first 384 dims of the 768
 _EMBEDDINGGEMMA_MAX_LEN = 2048
 _BGE_M3_MLX_MODEL_NAMES = {"bge_m3_mlx", "bge-m3-mlx"}
 _BGE_M3_MLX_REGISTRY_NAME = "bge-m3"
+_BGE_M3_MLX_MAX_LEN = 512
+_BGE_M3_MLX_BATCH_SIZE = 8
 
 
 class EmbeddinggemmaONNX:
@@ -233,8 +237,10 @@ class BGEM3MLX:
     """ChromaDB-compatible EF using BAAI/bge-m3 through MLX/Metal.
 
     Output is 1024-dimensional and normalized by ``mlx-embedding-models``.
-    This is a different vector space from MiniLM and EmbeddingGemma, so an
-    existing palace must be rebuilt before switching to this model.
+    Inputs are capped at 512 tokens to match the current MLX runner's fixed
+    sequence buckets. This is a different vector space from MiniLM and
+    EmbeddingGemma, so an existing palace must be rebuilt before switching to
+    this model.
     """
 
     @staticmethod
@@ -259,11 +265,17 @@ class BGEM3MLX:
             ) from e
 
         self._model = EmbeddingModel.from_registry(_BGE_M3_MLX_REGISTRY_NAME)
+        if hasattr(self._model, "max_length"):
+            self._model.max_length = min(int(self._model.max_length), _BGE_M3_MLX_MAX_LEN)
         self._mx = mx
 
     def __call__(self, input):  # noqa: A002 — ChromaDB EF protocol uses `input`
         self._lazy_load()
-        embeddings = self._model.encode(list(input), show_progress=False)
+        embeddings = self._model.encode(
+            list(input),
+            batch_size=_BGE_M3_MLX_BATCH_SIZE,
+            show_progress=False,
+        )
         return embeddings.tolist()
 
     def device_report(self) -> dict:

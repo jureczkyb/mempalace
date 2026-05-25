@@ -1,3 +1,6 @@
+import sys
+import types
+
 import pytest
 
 import mempalace.embedding as embedding
@@ -100,6 +103,62 @@ def test_get_embedding_function_bge_m3_mlx_uses_mlx_cache(monkeypatch):
     assert isinstance(first, DummyMLX)
     assert second is first
     assert embedding.get_embedding_function(model="bge_m3_mlx") is first
+
+
+def test_bge_m3_mlx_caps_length_and_uses_small_batches(monkeypatch):
+    class FakeEmbeddings:
+        def tolist(self):
+            return [[0.0] * 1024]
+
+    class FakeModel:
+        def __init__(self):
+            self.max_length = 8192
+            self.calls = []
+
+        def encode(self, input, *, batch_size, show_progress):
+            self.calls.append(
+                {
+                    "input": input,
+                    "batch_size": batch_size,
+                    "show_progress": show_progress,
+                    "max_length": self.max_length,
+                }
+            )
+            return FakeEmbeddings()
+
+    fake_model = FakeModel()
+
+    class FakeEmbeddingModel:
+        @staticmethod
+        def from_registry(name):
+            assert name == "bge-m3"
+            return fake_model
+
+    fake_mx = types.SimpleNamespace(
+        default_device=lambda: "Device(gpu, 0)",
+        get_active_memory=lambda: 0,
+        get_peak_memory=lambda: 0,
+    )
+    monkeypatch.setitem(sys.modules, "mlx", types.SimpleNamespace(core=fake_mx))
+    monkeypatch.setitem(sys.modules, "mlx.core", fake_mx)
+    monkeypatch.setitem(
+        sys.modules,
+        "mlx_embedding_models",
+        types.SimpleNamespace(EmbeddingModel=FakeEmbeddingModel),
+    )
+
+    ef = embedding.BGEM3MLX()
+
+    assert ef(["long input"]) == [[0.0] * 1024]
+    assert fake_model.max_length == 512
+    assert fake_model.calls == [
+        {
+            "input": ["long input"],
+            "batch_size": 8,
+            "show_progress": False,
+            "max_length": 512,
+        }
+    ]
 
 
 def test_describe_device_uses_resolved_effective_device(monkeypatch):
