@@ -2379,7 +2379,7 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.20" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "markitdown", extras = ["docx", "pdf", "pptx", "xlsx"], marker = "python_full_version >= '3.10' and extra == 'extract'", specifier = ">=0.1.5" },
-    { name = "mlx-embedding-models", marker = "extra == 'mlx'", specifier = ">=0.0.11" },
+    { name = "mlx-embedding-models", marker = "extra == 'mlx'", git = "https://github.com/jureczkyb/mlx_embedding_models.git?rev=fix%2Fdynamic-sequence-buckets" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "onnxruntime", marker = "extra == 'coreml'", specifier = ">=1.16" },
@@ -2495,7 +2495,7 @@ wheels = [
 [[package]]
 name = "mlx-embedding-models"
 version = "0.0.11"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/jureczkyb/mlx_embedding_models.git?rev=fix%2Fdynamic-sequence-buckets#18082003cb6fea7eb424ed4a419e8a3687bf39a5" }
 dependencies = [
     { name = "awkward", version = "2.8.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "awkward", version = "2.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -2511,10 +2511,6 @@ dependencies = [
     { name = "torch", version = "2.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "tqdm" },
     { name = "transformers" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/09/ff384fc20f602dca2877b823bff15dbec2259edab146bd18992d3e388ebc/mlx_embedding_models-0.0.11.tar.gz", hash = "sha256:9dcb01462736cca9e9014a032f5df2fb58cad6f1a9d6f70e321103cb67cb136c", size = 13128, upload-time = "2024-09-27T18:02:13.419Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/4f/5c09805363daa711368c6c3b86d1a24839b2512f3e75406fe4d75cd16f33/mlx_embedding_models-0.0.11-py3-none-any.whl", hash = "sha256:518c8d02773bf8afadc832e41ae473bd7433d609084b4930f3ce6ee47fbc6a6e", size = 15427, upload-time = "2024-09-27T18:02:12.426Z" },
 ]
 
 [[package]]

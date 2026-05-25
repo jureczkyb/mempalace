@@ -100,7 +100,10 @@ spellcheck = ["autocorrect>=2.0"]
 gpu = ["onnxruntime-gpu>=1.16"]
 dml = ["onnxruntime-directml>=1.16"]
 coreml = ["onnxruntime>=1.16"]
-mlx = ["mlx-embedding-models>=0.0.11", "transformers>=4.44.2,<5"]
+mlx = [
+    "mlx-embedding-models @ git+https://github.com/jureczkyb/mlx_embedding_models.git@fix/dynamic-sequence-buckets",
+    "transformers>=4.44.2,<5",
+]
 # Multilingual extra kept as a no-op alias for back-compat with
 # `pip install mempalace[multilingual]` — these deps now ship in core.
 multilingual = []
@@ -134,6 +137,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["mempalace"]

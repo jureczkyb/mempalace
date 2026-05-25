@@ -113,6 +113,7 @@ def test_bge_m3_mlx_caps_length_and_uses_small_batches(monkeypatch):
     class FakeModel:
         def __init__(self):
             self.max_length = 8192
+            self.seq_lens = [16, 128, 512, 1024, 8192]
             self.calls = []
 
         def encode(self, input, *, batch_size, show_progress):
@@ -150,18 +151,20 @@ def test_bge_m3_mlx_caps_length_and_uses_small_batches(monkeypatch):
     ef = embedding.BGEM3MLX()
 
     assert ef(["long input"]) == [[0.0] * 1024]
-    assert fake_model.max_length == 512
+    assert fake_model.max_length == 8192
     assert fake_model.calls == [
         {
             "input": ["long input"],
             "batch_size": 8,
             "show_progress": False,
-            "max_length": 512,
+            "max_length": 8192,
         }
     ]
     assert ef.embed_documents(["doc input"]) == [[0.0] * 1024]
     assert ef.embed_query("query input") == [0.0] * 1024
     assert ef.embed_query(["query input"]) == [[0.0] * 1024]
+    assert ef.device_report()["max_length"] == 8192
+    assert ef.device_report()["max_sequence_bucket"] == 8192
 
 
 def test_describe_device_uses_resolved_effective_device(monkeypatch):

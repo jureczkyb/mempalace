@@ -17,9 +17,7 @@ or ``embedding_model`` in ``~/.mempalace/config.json``:
   (different vector space).
 * ``bge_m3_mlx`` — BAAI/bge-m3 through mlx-embedding-models, 1024-dim,
   multilingual. Runs through MLX/Metal on Apple Silicon and requires
-  installing ``mempalace[mlx]`` or ``mlx-embedding-models``. The current
-  mlx-embedding-models BERT runner pads to fixed buckets up to 512 tokens, so
-  inputs are truncated to that cap before embedding.
+  installing ``mempalace[mlx]`` or ``mlx-embedding-models``.
 
 Supported devices (env ``MEMPALACE_EMBEDDING_DEVICE`` or ``embedding_device``
 in ``~/.mempalace/config.json``):
@@ -142,7 +140,6 @@ _EMBEDDINGGEMMA_DIM = 384  # Matryoshka truncation — first 384 dims of the 768
 _EMBEDDINGGEMMA_MAX_LEN = 2048
 _BGE_M3_MLX_MODEL_NAMES = {"bge_m3_mlx", "bge-m3-mlx"}
 _BGE_M3_MLX_REGISTRY_NAME = "bge-m3"
-_BGE_M3_MLX_MAX_LEN = 512
 _BGE_M3_MLX_BATCH_SIZE = 8
 
 
@@ -237,10 +234,8 @@ class BGEM3MLX:
     """ChromaDB-compatible EF using BAAI/bge-m3 through MLX/Metal.
 
     Output is 1024-dimensional and normalized by ``mlx-embedding-models``.
-    Inputs are capped at 512 tokens to match the current MLX runner's fixed
-    sequence buckets. This is a different vector space from MiniLM and
-    EmbeddingGemma, so an existing palace must be rebuilt before switching to
-    this model.
+    This is a different vector space from MiniLM and EmbeddingGemma, so an
+    existing palace must be rebuilt before switching to this model.
     """
 
     @staticmethod
@@ -265,14 +260,13 @@ class BGEM3MLX:
             ) from e
 
         self._model = EmbeddingModel.from_registry(_BGE_M3_MLX_REGISTRY_NAME)
-        if hasattr(self._model, "max_length"):
-            self._model.max_length = min(int(self._model.max_length), _BGE_M3_MLX_MAX_LEN)
         self._mx = mx
 
     def __call__(self, input):  # noqa: A002 — ChromaDB EF protocol uses `input`
         self._lazy_load()
+        texts = list(input)
         embeddings = self._model.encode(
-            list(input),
+            texts,
             batch_size=_BGE_M3_MLX_BATCH_SIZE,
             show_progress=False,
         )
@@ -294,11 +288,16 @@ class BGEM3MLX:
         """Return a lightweight MLX/Metal runtime report for diagnostics."""
         self._lazy_load()
         mx = self._mx
-        return {
+        report = {
             "mlx_default_device": str(mx.default_device()),
             "active_memory": int(mx.get_active_memory()),
             "peak_memory": int(mx.get_peak_memory()),
         }
+        if hasattr(self._model, "max_length"):
+            report["max_length"] = int(self._model.max_length)
+        if hasattr(self._model, "seq_lens"):
+            report["max_sequence_bucket"] = max(int(v) for v in self._model.seq_lens)
+        return report
 
 
 def get_embedding_function(device: Optional[str] = None, model: Optional[str] = None):
